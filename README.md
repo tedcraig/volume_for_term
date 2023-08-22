@@ -1,10 +1,36 @@
 # volume_for_term
 
-sets system volume to specified percentage
+Sets system volume to specified percentage on MacOs.
 
 ## Usage
 volume [0-100]
 
+
+#### Example 1
+command:
+```
+volume 75
+```
+output:
+```
+┌──────────────────────────────────────────────────┐
+│█████████████████████████████████████             │
+└──────────────────────────────────────────────────┘
+  volume set to 75%
+```
+
+#### Example 2
+command:
+```
+volume 0
+```
+output:
+```
+┌──────────────────────────────────────────────────┐
+│                                                  │
+└──────────────────────────────────────────────────┘
+  volume muted
+```
 ## Dev Notes
 Just a fun experiment with osascript (on macos) and a smidge of terminal UI in bash.
 
