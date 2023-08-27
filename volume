@@ -25,39 +25,145 @@
 # -----------------------------------------------------------------------------
 #   Global Vars
 # -----------------------------------------------------------------------------
-# TBD
+IS_FIRST_PAINT_OF_VOLUME_BAR=true
+VOLUME_AT_LAUNCH=
+VOLUME="unset"
+TERM_NUM_LINES=
+TERM_NUM_COLUMNS=
+UI_TOP_LINE=
+UI_BOTTOM_LINE=
+UI_LEFT_COLUMN=1
+UI_RIGHT_COLUMN=
+
 
 # -----------------------------------------------------------------------------
 #   Usage
 # -----------------------------------------------------------------------------
 show_usage() {
   echo "Usage: "
-  echo "  volume [0-100]"
-  echo "  sets system volume to specified percentage"
+  echo "  volume [0-100]|[?]|[--help]"
+  echo "    [0-100]       sets system volume to specified percentage"
+  echo "    [? | --help]  displays this usage message"
+  echo "    no argument   set volume interactively via terminal ui"
   exit 0
+}
+
+# -----------------------------------------------------------------------------
+#   Interactive Mode
+# -----------------------------------------------------------------------------
+run_interactive_mode() {
+  # Get current volume as a number from 0 to 100
+  VOLUME=$(osascript -e 'output volume of (get volume settings)')
+  # Retain initial volume in case we want to revert
+  [[ $IS_FIRST_PAINT_OF_VOLUME_BAR == true ]] && {
+    VOLUME_AT_LAUNCH="${VOLUME}"
+  }
+  draw_volume_bar "${VOLUME}"
+
+  # interactive loop
+  while read -rsn1 ui; do
+    case "$ui" in
+    $'\x1b')    # Handle ESC sequence.
+        # Flush read. We account for sequences for Fx keys as
+        # well. 6 should suffice far more then enough.
+        # read -rsn1 -t 1 tmp
+        read -rsn1 tmp
+        if [[ "$tmp" == "[" ]]; then
+            # read -rsn1 -t 1 tmp
+            read -rsn1 tmp
+            case "$tmp" in
+            "A")  # Up Arrow
+                set_volume_to $VOLUME_AT_LAUNCH
+                draw_volume_bar $VOLUME
+                ;;
+            "B")  # Down Arrow 
+                break
+                ;;
+            "C")  # Right Arrow 
+                  # printf "Right\n"                  
+                  set_volume_to $(( VOLUME + 5 ))
+                  [[ $VOLUME -gt 100 ]] && { 
+                    VOLUME=100 
+                    }
+                  draw_volume_bar $VOLUME
+                ;;
+            "D") 
+              set_volume_to $(( VOLUME - 5 ))
+              [[ $VOLUME -lt 0 ]] && { 
+                VOLUME=0 
+                }
+              draw_volume_bar $VOLUME
+              #printf "Left\n"
+              ;;
+            esac
+        fi
+        # Flush "stdin" with 0.1  sec timeout.
+        # read -rsn5 -t 1
+        ;;
+    # Other one byte (char) cases. 
+    0) 
+      set_volume_to 0
+      draw_volume_bar $VOLUME
+      ;;
+    q) break;;
+    esac
+done
+
+  exit
+}
+
+
+# -----------------------------------------------------------------------------
+#   Set Volume
+#
+#   expects 0-100
+# -----------------------------------------------------------------------------
+set_volume_to() {
+  local volume=$1
+  # osascript examples:
+    #   Set the output volume to 50%
+    #     sudo osascript -e 'set volume output volume 50'
+    #   Input volume and Alert volume can also be set from 0 to 100%:
+    #     sudo osascript -e 'set volume input volume 40'
+    #     sudo osascript -e 'set volume alert volume 75'
+    osascript -e "set volume output volume ${volume}"
+    # update global vol
+    VOLUME=$volume
 }
 
 # -----------------------------------------------------------------------------
 #   Draw Volume Bar
 # -----------------------------------------------------------------------------
 draw_volume_bar() {
-  # make room for the graph
-  echo
-  echo
-  echo
+    
+  local volume=$1
+
+  [[ ${IS_FIRST_PAINT_OF_VOLUME_BAR} == true ]] && {
+    # make room for the graph
+    echo
+    echo
+    echo
+    echo
+    IS_FIRST_PAINT_OF_VOLUME_BAR=false
+  }
   # draw bar
   ttui::cursor::move_to_bottom
-  ttui::cursor::move_up 2
+  ttui::cursor::move_up 3
   ttui::cursor::move_right
-  local count=$1
+  local count=$volume
   while (( count > 1 )); do
     printf "${TTUI_HBAR_8}"
     (( count=count-2 ))
   done
   printf "\n"
   # draw window
-  ttui::cursor::move_up 2
+  ttui::cursor::move_up 3
   ttui::draw_box 52 3
+  # print description
+    local vol_description="error"
+    [[ $1 == 0 ]] && vol_description="muted" || vol_description="set to ${volume}%"
+    ttui::clear_line
+    echo " volume ${vol_description}"
 }
 
 
@@ -70,24 +176,33 @@ main() {
   # echo "basename \$0: $(basename "$0")"
   # echo "dirname \$0: $(dirname "$0")"
 
-  [[ $# -lt 1 ]] && show_usage
+  # get terminal dimensions
+  TERM_NUM_COLUMNS=$(ttui::get_term_width)
+  TERM_NUM_LINES=$(ttui::get_term_height)
+  UI_BOTTOM_LINE=$TERM_NUM_LINES
+  UI_TOP_LINE=$(( UI_BOTTOM_LINE - 3 )) # UI is 4 lines tall
+  
 
-  local volume=$1
+  [[ $# -lt 1 ]] && {
+    # interactive mode
+    echo "interactive mode..."
+    run_interactive_mode
+  }
 
-  if (( volume >= 0 )) && (( volume <= 100 )); then
-    # osascript examples:
-    #   Set the output volume to 50%
-    #     sudo osascript -e 'set volume output volume 50'
-    #   Input volume and Alert volume can also be set from 0 to 100%:
-    #     sudo osascript -e 'set volume input volume 40'
-    #     sudo osascript -e 'set volume alert volume 75'
-    osascript -e "set volume output volume ${volume}"
+  # TODO -- could valid date that incoming arg is a number ..
+  VOLUME=$1
+
+  # if [[ ${volume} == "?" ]] || [[ ${volume} == "--help" ]]; then
+  # if [[ $volume == "?" ]]; then
+  #   show_usage
+  if (( VOLUME >= 0 )) && (( VOLUME <= 100 )); then
+    
     # draw bar representing volume % using ttui library
     draw_volume_bar "${volume}"
     # print description
-    local vol_description="error"
-    [[ $1 == 0 ]] && vol_description="muted" || vol_description="set to ${volume}%"
-    echo " volume ${vol_description}"
+    # local vol_description="error"
+    # [[ $1 == 0 ]] && vol_description="muted" || vol_description="set to ${volume}%"
+    # echo " volume ${vol_description}"
   else
     echo "invalid arg '${volume}': must be integer in range 0 thru 100"
   fi  
