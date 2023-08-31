@@ -18,7 +18,7 @@
 # source "${PATH_TO_SCRIPT}"'/ttui_lib.sh'
 # TODO: convert path to an environment PATH token
 [[ "${TTUI_LOADED}" != "true" ]] && {
-  source /Users/tedcraig/scripts/ttui/ttui_lib.sh
+  source $TTUI/ttui.bash  # make sure $TTUI environment variable is set
 }
 
 
@@ -158,7 +158,7 @@ draw_volume_bar() {
   printf "\n"
   # draw window
   ttui::cursor::move_up 3
-  ttui::draw_box 52 3
+  ttui::draw::box 52 3
   # print description
     local vol_description="error"
     [[ $1 == 0 ]] && vol_description="muted" || vol_description="set to ${volume}%"
@@ -181,7 +181,6 @@ main() {
   TERM_NUM_LINES=$(ttui::get_term_height)
   UI_BOTTOM_LINE=$TERM_NUM_LINES
   UI_TOP_LINE=$(( UI_BOTTOM_LINE - 3 )) # UI is 4 lines tall
-  
 
   [[ $# -lt 1 ]] && {
     # interactive mode
